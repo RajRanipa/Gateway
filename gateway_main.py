@@ -58,10 +58,12 @@ def run() -> None:
                 plc.acknowledge_persisted(source)
                 mark_capture_acknowledged(SQLITE_PATH, source)
                 action = "captured" if inserted else "recovered_ack"
+                print("------------------------------------------------------")
                 print(
                     f"{action} source={source} recordId={record['recordId']} "
                     f"weightKg={record['weight']} key={key}"
                 )
+                print(record)
 
             time.sleep(PLC_POLL_MS / 1000.0)
         except KeyboardInterrupt:

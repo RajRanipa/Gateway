@@ -1,0 +1,23 @@
+[Unit]
+Description=Orient ERP gateway delivery worker
+After=network-online.target pi-gateway-plc.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raj_pi_8616
+Group=raj_pi_8616
+WorkingDirectory=/home/raj_pi_8616/gateway
+EnvironmentFile=/etc/default/pi-gateway
+ExecStart=/home/raj_pi_8616/gateway/venv/bin/python sender_service.py
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/raj_pi_8616/gateway/state /home/raj_pi_8616/gateway/data
+
+[Install]
+WantedBy=multi-user.target
+

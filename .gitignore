@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+queue.db
+queue.db-shm
+queue.db-wal
+data/
+state/
+.DS_Store
+

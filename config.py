@@ -22,26 +22,31 @@ PLC_POLL_MS = _int("PLC_POLL_MS", 200)
 # TIA Portal DB numbers
 DB_SCALE1 = _int("PLC_DB_SCALE1", 1)
 DB_SCALE2 = _int("PLC_DB_SCALE2", 7)
-DB_PARAM = _int("PLC_DB_PARAM", 9)
 DB_ET = _int("PLC_DB_ET", 12)
 
-# DB9 frozen parameter offsets
-O_REC_PRODUCT = 12
-O_REC_SIZE = 14
-O_REC_DENSITY = 16
-O_REC_TEMP = 18
-
-# DB1/DB7 weighing offsets
+# DB1/DB7 source-specific gateway snapshot offsets.
+# These addresses are from the non-optimized PLC_NEW TIA export.
 O_NODEJS_READ = 0
 O_RECORD_STATUS_BYTE = 112
 O_RECORD_STATUS_BIT = 0
 O_CAPTURED_WEIGHT = 118
+O_GW_EVENT_SEQUENCE = 132
+O_GW_PRODUCT_CODE = 136
+O_GW_SIZE_CODE = 138
+O_GW_DENSITY = 140
+O_GW_TEMPERATURE = 142
+O_GW_QUALITY_BYTE = 144
+O_GW_QUALITY_BIT = 0
 
-# DB12 ET offsets
-O_ET_PRODUCT_CODE = 2
-O_ET_ACTIVATE_BYTE = 4
-O_ET_ACTIVATE_BIT = 0
-O_ET_TEMP = 6
+# DB12 source-specific ET gateway snapshot offsets.
+O_ET_GW_EVENT_SEQUENCE = 10
+O_ET_GW_PRODUCT_CODE = 14
+O_ET_GW_SIZE_CODE = 16
+O_ET_GW_DENSITY = 18
+O_ET_GW_TEMPERATURE = 20
+O_ET_GW_QUALITY_BYTE = 22
+O_ET_GW_QUALITY_BIT = 0
+O_ET_GW_CAPTURED_WEIGHT = 24
 
 # Local durable storage
 DATA_DIR = Path(os.getenv("GATEWAY_DATA_DIR", str(BASE_DIR / "data")))

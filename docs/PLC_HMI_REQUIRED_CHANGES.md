@@ -28,6 +28,21 @@ The current Pi adds a crash-safe local identity, but only a PLC-owned retained
 sequence can remove the final ambiguity when the Pi is offline during a complete
 PLC `2 -> 0 -> 1` cycle.
 
+The `PLC_NEW` non-optimized layout has now been integrated into the Pi reader:
+
+```text
+DB1/DB7: state=0, weight=118, sequence=132, product=136,
+         size=138, density=140, temperature=142, quality=144.0
+DB12:    state=0, sequence=10, product=14, size=16, density=18,
+         temperature=20, quality=22.0, weight=24
+```
+
+Because these standard/non-optimized DBs expose retentivity at whole-block
+granularity in this TIA/CPU configuration, retaining the full DB is accepted.
+The capture pulse is overwritten before its dependent networks on every
+executed scan, and a retained non-idle handshake prevents a duplicate capture
+after restart.
+
 ## 2. Freeze parameters separately for each source
 
 DB9 currently has one shared set of `RecordProductCode`, `RecordSizeCode`,
@@ -80,6 +95,11 @@ Also make NodeJS state read-only on the HMI. Display:
 Add alarms for a source remaining in state `1` or `2` beyond a configurable
 duration.
 
+Scale 2 and ET share one physical scale and one positive-edge memory. Their FB
+calls must remain mutually exclusive. Do not automatically set `ET_Activate`
+when the scale is idle; it is an operator-selected mode. Block mode changes
+while either NodeJS state is nonzero or the scale is not empty.
+
 ## 6. Add gateway health signals
 
 Add a Pi heartbeat counter and last-seen indicator in a dedicated gateway DB.
@@ -101,4 +121,3 @@ Run these tests with uniquely labelled physical products:
    count, and inventory count matches only eligible products.
 
 Do not declare commissioning complete until every test reconciles exactly.
-

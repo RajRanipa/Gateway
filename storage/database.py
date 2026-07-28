@@ -33,7 +33,7 @@ def init_db(db_path: Path) -> None:
             CREATE TABLE IF NOT EXISTS records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 unique_key TEXT NOT NULL UNIQUE,
-                record_id TEXT NOT NULL UNIQUE,
+                record_id TEXT NOT NULL,
                 source TEXT,
                 at TEXT NOT NULL,
                 payload TEXT NOT NULL,
@@ -55,8 +55,7 @@ def init_db(db_path: Path) -> None:
                 record_id TEXT NOT NULL,
                 unique_key TEXT NOT NULL,
                 captured_at TEXT NOT NULL,
-                acknowledged_at TEXT,
-                FOREIGN KEY(record_id) REFERENCES records(record_id)
+                acknowledged_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS kv (
@@ -77,6 +76,37 @@ def init_db(db_path: Path) -> None:
             if not _column_exists(con, "records", column):
                 con.execute(statement)
 
+        # Historical queue versions legitimately reused record_id values.
+        # A short-lived v2 schema referenced that non-unique legacy column from
+        # capture_state. Rebuild only the handshake table without the invalid
+        # foreign key, preserving any active capture identity.
+        if con.execute("PRAGMA foreign_key_list(capture_state)").fetchall():
+            con.executescript(
+                """
+                ALTER TABLE capture_state RENAME TO capture_state_with_legacy_fk;
+
+                CREATE TABLE capture_state (
+                    source TEXT PRIMARY KEY,
+                    fingerprint TEXT NOT NULL,
+                    record_id TEXT NOT NULL,
+                    unique_key TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    acknowledged_at TEXT
+                );
+
+                INSERT INTO capture_state (
+                    source, fingerprint, record_id, unique_key,
+                    captured_at, acknowledged_at
+                )
+                SELECT
+                    source, fingerprint, record_id, unique_key,
+                    captured_at, acknowledged_at
+                FROM capture_state_with_legacy_fk;
+
+                DROP TABLE capture_state_with_legacy_fk;
+                """
+            )
+
         # Older versions used FAILED for ordinary network failures.
         con.execute(
             """
@@ -93,8 +123,11 @@ def init_db(db_path: Path) -> None:
             CREATE INDEX IF NOT EXISTS idx_records_created
             ON records(created_at);
 
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_records_record_id_unique
-            ON records(record_id);
+            DROP INDEX IF EXISTS idx_records_record_id_unique;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_records_source_record_id_unique
+            ON records(source, record_id)
+            WHERE source IS NOT NULL;
             """
         )
         con.commit()
@@ -132,8 +165,8 @@ def persist_capture(
                     "refusing to acknowledge an ambiguous product"
                 )
             row = con.execute(
-                "SELECT * FROM records WHERE record_id=?",
-                (active["record_id"],),
+                "SELECT * FROM records WHERE unique_key=?",
+                (active["unique_key"],),
             ).fetchone()
             if not row:
                 raise RuntimeError(

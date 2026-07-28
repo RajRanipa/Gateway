@@ -21,6 +21,7 @@ def _canonical_json(value: dict) -> str:
 def snapshot_fingerprint(source: str, snapshot: dict) -> str:
     immutable = {
         "source": source,
+        "eventSequence": snapshot["eventSequence"],
         "scaleNo": snapshot["scaleNo"],
         "productCode": snapshot["productCode"],
         "temperature": snapshot["temperature"],
@@ -83,4 +84,3 @@ def save_plc_event(
             # SQLite remains authoritative and was fsynced before PLC ACK.
             print(f"WARNING jsonl_backup_failed source={source} error={exc}")
     return inserted, persisted_record, str(row["unique_key"])
-

@@ -12,6 +12,10 @@ from storage.repository import save_plc_event
 
 
 def validate_snapshot(source: str, record: dict) -> None:
+    if int(record["eventSequence"]) <= 0:
+        raise ValueError(
+            f"{source}: invalid eventSequence={record['eventSequence']}"
+        )
     if record["scaleNo"] not in (1, 2, 3):
         raise ValueError(f"{source}: invalid scaleNo={record['scaleNo']}")
     if record["productCode"] not in (1, 2, 3, 4, 5):
@@ -72,4 +76,3 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-

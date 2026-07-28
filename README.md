@@ -45,7 +45,8 @@ sudo systemctl enable --now pi-gateway-plc.service
 sudo systemctl enable --now pi-gateway-sender.service
 ```
 
-Deploy with `rsync`, but always exclude `state/`, `data/`, `.env`, and `venv/`.
+Deploy with `rsync`, but always exclude `state/`, `data/`, `.env`, `venv/`,
+and `.git/`.
 The queue database is production data and must never be replaced by deployment.
 
 ## Required deployment order

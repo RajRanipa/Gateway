@@ -57,7 +57,7 @@ def run() -> None:
                 # is required to recover from a process crash after SQLite commit.
                 plc.acknowledge_persisted(source)
                 mark_capture_acknowledged(SQLITE_PATH, source)
-                action = "captured" if inserted else "recovered_ack"
+                action = "✅ captured" if inserted else "❌ recovered_ack"
                 print("------------------------------------------------------")
                 print(
                     f"{action} source={source} recordId={record['recordId']} "

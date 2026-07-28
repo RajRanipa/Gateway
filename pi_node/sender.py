@@ -114,7 +114,7 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
 
         release_lease(db_path, lease_token)
         print(
-            "delivery_result "
+            "📌 delivery_result "
             f"accepted={len(accepted_rows)} "
             f"retry={len(retry_rows)} "
             f"quarantined={len(quarantined_rows)}"

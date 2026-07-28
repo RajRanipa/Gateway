@@ -89,3 +89,7 @@ SENT rows are retained indefinitely by default. Configure
 python3 -m compileall -q .
 python3 -m unittest discover -s tests -v
 ```
+
+git fetch origin
+git pull --ff-only origin main
+git rev-parse --short HEAD

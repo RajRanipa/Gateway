@@ -72,6 +72,15 @@ def post_batch(rows) -> DeliveryResult:
         "records": records,
     }
 
+    print(
+        "gateway_http_send "
+        f"url={NODE_URL} "
+        f"batchId={batch_id} "
+        f"records={len(records)} "
+        f"recordIds={','.join(sorted(expected_ids))}",
+        flush=True,
+    )
+
     try:
         response = _session.post(
             NODE_URL,
@@ -80,6 +89,10 @@ def post_batch(rows) -> DeliveryResult:
             timeout=(HTTP_CONNECT_TIMEOUT_SEC, HTTP_READ_TIMEOUT_SEC),
         )
     except requests.RequestException as exc:
+        print(
+            f"gateway_http_error batchId={batch_id} error={exc}",
+            flush=True,
+        )
         return DeliveryResult(
             frozenset(),
             frozenset(expected_ids),
@@ -91,6 +104,14 @@ def post_batch(rows) -> DeliveryResult:
         body = response.json()
     except ValueError:
         body = None
+
+    print(
+        "gateway_http_response "
+        f"batchId={batch_id} "
+        f"status={response.status_code} "
+        f"bodyType={'json' if isinstance(body, dict) else 'non-json'}",
+        flush=True,
+    )
 
     if response.status_code not in (200, 201, 207):
         message = (
@@ -140,4 +161,3 @@ def post_batch(rows) -> DeliveryResult:
         rejected,
         None if not unacknowledged else "Backend omitted record acknowledgements",
     )
-

@@ -22,6 +22,22 @@ from storage.database import (
     schedule_rows_retry,
 )
 
+_last_wait_state = None
+
+
+def _log(event: str, **fields) -> None:
+    details = " ".join(f"{key}={value}" for key, value in fields.items())
+    print(f"{event}{' ' if details else ''}{details}", flush=True)
+
+
+def _log_wait_state_once(**fields) -> None:
+    global _last_wait_state
+    state = tuple(sorted(fields.items()))
+    if state == _last_wait_state:
+        return
+    _last_wait_state = state
+    _log("gateway_send_waiting", **fields)
+
 
 def retry_delay_seconds(attempt_number: int) -> int:
     index = max(0, int(attempt_number) - 1)
@@ -32,17 +48,31 @@ def retry_delay_seconds(attempt_number: int) -> int:
 
 def should_send(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
     if not NODE_URL:
+        _log_wait_state_once(reason="node_url_missing", sqlitePath=db_path)
         return False
-    if force or has_due_retry(db_path):
+    if force:
         return True
-    if count_new_pending(db_path) >= SEND_IF_PENDING_AT_LEAST:
+    if has_due_retry(db_path):
+        return True
+    pending = count_new_pending(db_path)
+    if pending >= SEND_IF_PENDING_AT_LEAST:
         return True
     oldest = oldest_new_pending_created_at(db_path)
     if not oldest:
         return False
     try:
         age = datetime.now(timezone.utc) - datetime.fromisoformat(oldest)
-        return age.total_seconds() >= SEND_IF_OLDEST_PENDING_SECONDS
+        age_seconds = max(0, int(age.total_seconds()))
+        if age_seconds >= SEND_IF_OLDEST_PENDING_SECONDS:
+            return True
+        _log_wait_state_once(
+            reason="below_threshold",
+            pending=pending,
+            threshold=SEND_IF_PENDING_AT_LEAST,
+            oldestAgeSeconds=age_seconds,
+            maxAgeSeconds=SEND_IF_OLDEST_PENDING_SECONDS,
+        )
+        return False
     except ValueError:
         return True
 
@@ -69,9 +99,18 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
         lease_seconds=DELIVERY_LEASE_SECONDS,
     )
     if not rows or not lease_token:
+        if force:
+            _log("gateway_queue_empty", sqlitePath=db_path)
         return False
 
     by_record_id = {str(row["record_id"]): row for row in rows}
+    record_ids = ",".join(by_record_id)
+    _log(
+        "gateway_send_attempt",
+        rows=len(rows),
+        recordIds=record_ids,
+        sqlitePath=db_path,
+    )
     try:
         result = post_batch(rows)
         accepted_rows = [
@@ -113,12 +152,12 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
             )
 
         release_lease(db_path, lease_token)
-        print(f"delivery_result -> {result}")
-        print(
-            "📌 delivery_result "
-            f"accepted={len(accepted_rows)} "
-            f"retry={len(retry_rows)} "
-            f"quarantined={len(quarantined_rows)}"
+        _log(
+            "gateway_delivery_result",
+            accepted=len(accepted_rows),
+            retry=len(retry_rows),
+            quarantined=len(quarantined_rows),
+            error=result.error or "none",
         )
         return bool(accepted_rows)
     except Exception as exc:
@@ -128,5 +167,5 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
             error=str(exc),
             lease_token=lease_token,
         )
-        print(f"delivery_error rows={len(rows)} error={exc}")
+        _log("gateway_delivery_error", rows=len(rows), error=exc)
         return False

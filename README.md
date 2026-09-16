@@ -103,3 +103,9 @@ python3 -m unittest discover -s tests -v
 git fetch origin
 git pull --ff-only origin main
 git rev-parse --short HEAD
+
+sudo systemctl restart pi-gateway-plc.service
+sudo systemctl restart pi-gateway-sender.service
+
+sudo systemctl status pi-gateway-plc.service --no-pager
+sudo systemctl status pi-gateway-sender.service --no-pager

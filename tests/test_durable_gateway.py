@@ -24,6 +24,7 @@ if importlib.util.find_spec("snap7") is None:
     sys.modules["snap7"] = snap7_stub
 
 from pi_node.api_client import post_batch
+from pi_node.sender import should_send
 from plc_pi.client import PLCClient
 from storage.database import (
     claim_eligible_pending,
@@ -194,6 +195,21 @@ class DurableCaptureTests(unittest.TestCase):
             )
         finally:
             con.close()
+
+    @patch("storage.repository._append_jsonl")
+    def test_one_pending_record_is_immediately_eligible_for_delivery(self, _backup):
+        save_plc_event(
+            "scale-1",
+            SNAPSHOT,
+            db_path=self.db_path,
+            gateway_id="test-gateway",
+        )
+
+        with (
+            patch("pi_node.sender.NODE_URL", "https://erp.example.test/gateway"),
+            patch("pi_node.sender.SEND_IF_PENDING_AT_LEAST", 1),
+        ):
+            self.assertTrue(should_send(self.db_path))
 
     @patch("storage.repository._append_jsonl")
     def test_idle_transition_allows_identical_next_product(self, _backup):

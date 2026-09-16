@@ -61,7 +61,10 @@ NODE_URL = os.getenv(
 GATEWAY_ID = os.getenv("GATEWAY_ID", "pi-gateway-1").strip()
 GATEWAY_KEY = os.getenv("GATEWAY_KEY", "").strip()
 
-SEND_IF_PENDING_AT_LEAST = _int("GATEWAY_SEND_THRESHOLD", 5)
+# Send a completed production record as soon as it is durably queued. The
+# sender still supports batches when several records accumulated while the
+# backend or network was unavailable.
+SEND_IF_PENDING_AT_LEAST = _int("GATEWAY_SEND_THRESHOLD", 1)
 SEND_BATCH_SIZE = _int("GATEWAY_SEND_BATCH_SIZE", 5)
 SEND_IF_OLDEST_PENDING_SECONDS = _int("GATEWAY_SEND_MAX_AGE_SECONDS", 1200)
 SENDER_POLL_SEC = _float("GATEWAY_SENDER_POLL_SEC", 2.0)

@@ -28,7 +28,13 @@ GATEWAY_NODE_URL=https://api.orientfibertech.com/gateway/blanket/production
 GATEWAY_KEY=replace-with-the-same-secret-used-on-render
 GATEWAY_SQLITE_PATH=/home/raj_pi_8616/gateway/state/queue.db
 GATEWAY_DATA_DIR=/home/raj_pi_8616/gateway/data
+GATEWAY_SEND_THRESHOLD=1
 ```
+
+With `GATEWAY_SEND_THRESHOLD=1`, every completed PLC record is eligible for
+delivery immediately after the durable SQLite commit. The sender polls every
+two seconds by default. If the network or backend was unavailable, recovered
+records may still be delivered together in a small batch.
 
 Protect it:
 
@@ -63,6 +69,10 @@ The queue database is production data and must never be replaced by deployment.
 9. After Item and warehouse matching is verified, set
    `GATEWAY_RECONCILE_ENABLED=true` on the backend to enable automatic repair
    of stored production records whose inventory posting is pending.
+
+The backend posts to Item Master / Inventory V2 by default. Keep
+`GATEWAY_LEGACY_INVENTORY_ENABLED` unset or `false`. Set it to `true` only when
+an explicitly planned legacy dual-write window is required.
 
 If the new Pi sender reaches an old backend, it deliberately keeps records
 pending because the old response does not acknowledge individual record IDs.

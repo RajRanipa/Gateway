@@ -140,7 +140,7 @@ def post_batch(rows) -> DeliveryResult:
         f"❇️ just test for results:\n"
         f"{json.dumps(results, indent=2, default=str)}\n"
         f"❇️ just test for response:\n"
-        f"{json.dumps(body.get('printJobs') if isinstance(body, dict) else body, indent=2, default=str)}",
+        f"{json.dumps(body if isinstance(body, dict) else body, indent=2, default=str)}",
         flush=True,
     )
     accepted: set[str] = set()

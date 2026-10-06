@@ -137,10 +137,10 @@ def post_batch(rows) -> DeliveryResult:
             "Backend returned 2xx without contract-v2 record acknowledgements",
         )
     print(
-        "❇️ just test for results:\n"
-        + results + "\n"
-        + "❇️ just test for response:\n"
-        + json.dumps(body.get("printJobs") if isinstance(body, dict) else body, indent=2, default=str),
+        f"❇️ just test for results:\n"
+        f"{json.dumps(results, indent=2, default=str)}\n"
+        f"❇️ just test for response:\n"
+        f"{json.dumps(body.get('printJobs') if isinstance(body, dict) else body, indent=2, default=str)}",
         flush=True,
     )
     accepted: set[str] = set()

@@ -138,7 +138,8 @@ def post_batch(rows) -> DeliveryResult:
         )
     print(
         "❇️ just test for response:\n"
-        + json.dumps(body.get("data") if isinstance(body, dict) else body, indent=2, default=str),
+        # + json.dumps(body.get("data") if isinstance(body, dict) else body, indent=2, default=str),
+        + json.dumps(body if isinstance(body, dict) else body, indent=2, default=str),
         flush=True,
     )
     accepted: set[str] = set()

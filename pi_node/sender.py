@@ -118,6 +118,7 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
             for record_id in result.accepted_record_ids
             if record_id in by_record_id
         ]
+        print(" __ Hell yes __", result)
         if accepted_rows:
             mark_rows_sent(
                 db_path,

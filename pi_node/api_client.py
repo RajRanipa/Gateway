@@ -137,6 +137,15 @@ def post_batch(rows) -> DeliveryResult:
             {},
             "Backend returned 2xx without contract-v2 record acknowledgements",
         )
+        
+    print(
+        "❇️ just test for results:\n",
+        json.dumps(results, indent=2, default=str),
+        "\n❇️ just test for response:\n",
+        json.dumps(body if isinstance(body, dict) else body, indent=2, default=str),
+        flush=True,
+    )
+    
     accepted: set[str] = set()
     retryable: set[str] = set()
     rejected: dict[str, str] = {}

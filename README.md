@@ -58,23 +58,19 @@ The queue database is production data and must never be replaced by deployment.
 ## Required deployment order
 
 1. Deploy the updated Node.js backend.
-2. Run `npm run audit:gateway-module`, review it, then run
-   `npm run migrate:gateway-module`.
+2. Confirm the backend pre-deploy command `npm run deploy:prepare` completed.
 3. Confirm `GET /gateway/test` succeeds with `X-Gateway-Key`.
 4. Set the same `GATEWAY_KEY` on the Pi.
-5. Stop both old Pi services.
+5. Stop both Pi services.
 6. Back up `queue.db`, deploy this source, and start the capture service.
 7. Verify new captures enter `PENDING`.
-8. Start the sender and verify contract-v2 per-record acknowledgements.
+8. Start the sender and verify per-record acknowledgements.
 9. After Item and warehouse matching is verified, set
    `GATEWAY_RECONCILE_ENABLED=true` on the backend to enable automatic repair
    of stored production records whose inventory posting is pending.
 
-The backend posts to Item Master / Inventory V2 by default. Keep
-`GATEWAY_LEGACY_INVENTORY_ENABLED` unset or `false`. Set it to `true` only when
-an explicitly planned legacy dual-write window is required.
-
-If the new Pi sender reaches an old backend, it deliberately keeps records
+The backend posts only to the final Item Master and inventory collections.
+If the Pi sender reaches an incompatible backend, it deliberately keeps records
 pending because the old response does not acknowledge individual record IDs.
 
 ## Operational checks

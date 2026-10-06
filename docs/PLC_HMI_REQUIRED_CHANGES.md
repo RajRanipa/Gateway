@@ -1,4 +1,14 @@
-# PLC/HMI reliability changes
+# PLC/HMI reliability changes - superseded
+
+This document describes the earlier three-source transition design. The final
+two-physical-scale migration, including the TIA Portal build order and matching
+Raspberry Pi transition, is documented in:
+
+`../../docs/TIA_PORTAL_TWO_SCALE_MIGRATION_GUIDE.md`
+
+Do not use the older recommendation below to keep Scale 2 and ET as separate
+logical PLC readers. It is retained only as historical context until the
+migration is commissioned.
 
 The supplied TIA Portal V16 PDF confirms the current handshake:
 

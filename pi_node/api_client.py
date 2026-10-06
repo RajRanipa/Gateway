@@ -136,7 +136,9 @@ def post_batch(rows) -> DeliveryResult:
             {},
             "Backend returned 2xx without contract-v2 record acknowledgements",
         )
-
+    print("❇️ just test for response",
+        response
+    )
     accepted: set[str] = set()
     retryable: set[str] = set()
     rejected: dict[str, str] = {}

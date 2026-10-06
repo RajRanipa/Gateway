@@ -20,6 +20,7 @@ class DeliveryResult:
     retryable_record_ids: frozenset[str]
     rejected: dict[str, str]
     error: str | None = None
+    print_jobs: tuple[dict, ...] = ()
 
 
 _session = requests.Session()
@@ -136,22 +137,19 @@ def post_batch(rows) -> DeliveryResult:
             {},
             "Backend returned 2xx without contract-v2 record acknowledgements",
         )
-    print(
-        f"❇️ just test for results:\n"
-        f"{json.dumps(results, indent=2, default=str)}\n"
-        f"❇️ just test for response:\n"
-        f"{json.dumps(body if isinstance(body, dict) else body, indent=2, default=str)}",
-        flush=True,
-    )
     accepted: set[str] = set()
     retryable: set[str] = set()
     rejected: dict[str, str] = {}
+    print_jobs: list[dict] = []
     for result in results:
         record_id = str(result.get("recordId") or "")
         if record_id not in expected_ids:
             continue
         if result.get("accepted") is True:
             accepted.add(record_id)
+            print_job = result.get("printJob")
+            if result.get("printStatus") == "READY" and isinstance(print_job, dict):
+                print_jobs.append(print_job)
         elif result.get("retryable", True):
             retryable.add(record_id)
         else:
@@ -161,9 +159,21 @@ def post_batch(rows) -> DeliveryResult:
 
     unacknowledged = expected_ids - accepted - retryable - set(rejected)
     retryable.update(unacknowledged)
+    print(
+        "gateway_http_ack "
+        f"batchId={batch_id} "
+        f"results={len(results)} "
+        f"accepted={len(accepted)} "
+        f"retryable={len(retryable)} "
+        f"rejected={len(rejected)} "
+        f"printJobs={len(print_jobs)} "
+        f"printJobIds={','.join(str(job.get('jobId') or 'unknown') for job in print_jobs) or 'none'}",
+        flush=True,
+    )
     return DeliveryResult(
         frozenset(accepted),
         frozenset(retryable),
         rejected,
         None if not unacknowledged else "Backend omitted record acknowledgements",
+        tuple(print_jobs),
     )

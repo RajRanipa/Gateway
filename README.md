@@ -73,6 +73,15 @@ The backend posts only to the final Item Master and inventory collections.
 If the Pi sender reaches an incompatible backend, it deliberately keeps records
 pending because the old response does not acknowledge individual record IDs.
 
+## Gateway response contract
+
+The production endpoint returns batch counters once in `data.summary` and one
+acknowledgement per submitted PLC event in `data.recordResults`. An accepted
+Blanket label is available only at `recordResults[].printJob` when
+`printStatus` is `READY`; it is not duplicated elsewhere in the response.
+The sender also understands the previous nested acknowledgement location during
+the deployment transition, but new backend responses use the compact layout.
+
 ## Operational checks
 
 ```bash

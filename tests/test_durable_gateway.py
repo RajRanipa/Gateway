@@ -338,6 +338,11 @@ class DurableCaptureTests(unittest.TestCase):
                                 "recordId": "accepted-id",
                                 "accepted": True,
                                 "retryable": False,
+                                "printStatus": "READY",
+                                "printJob": {
+                                    "jobId": "SERIAL_LABEL:123",
+                                    "template": "BLANKET_ROLL_TRACE_V1",
+                                },
                             }
                         ]
                     }
@@ -359,6 +364,8 @@ class DurableCaptureTests(unittest.TestCase):
         result = post_batch(rows)
         self.assertEqual(result.accepted_record_ids, {"accepted-id"})
         self.assertEqual(result.retryable_record_ids, {"missing-id"})
+        self.assertEqual(len(result.print_jobs), 1)
+        self.assertEqual(result.print_jobs[0]["jobId"], "SERIAL_LABEL:123")
 
     @patch("pi_node.api_client._session.post")
     def test_unrecognized_2xx_response_never_deletes_local_rows(self, post):

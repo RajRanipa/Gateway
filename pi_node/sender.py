@@ -14,6 +14,7 @@ from pi_node.api_client import post_batch
 from storage.database import (
     claim_eligible_pending,
     count_new_pending,
+    enqueue_label_print_jobs,
     has_due_retry,
     mark_rows_sent,
     oldest_new_pending_created_at,
@@ -113,6 +114,9 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
     )
     try:
         result = post_batch(rows)
+        print("result.print_jobs -> ")
+        print(result.print_jobs)
+        queued_print_jobs = enqueue_label_print_jobs(db_path, result.print_jobs)
         accepted_rows = [
             int(by_record_id[record_id]["id"])
             for record_id in result.accepted_record_ids
@@ -158,6 +162,7 @@ def send_eligible_once(db_path=SQLITE_PATH, *, force: bool = False) -> bool:
             retry=len(retry_rows),
             quarantined=len(quarantined_rows),
             printJobs=len(result.print_jobs),
+            printJobsQueued=len(queued_print_jobs),
             error=result.error or "none",
         )
         return bool(accepted_rows)

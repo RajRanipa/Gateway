@@ -23,13 +23,15 @@ if importlib.util.find_spec("snap7") is None:
     snap7_stub.client = types.SimpleNamespace(Client=lambda: None)
     sys.modules["snap7"] = snap7_stub
 
-from pi_node.api_client import post_batch
-from pi_node.sender import should_send
+from pi_node.api_client import DeliveryResult, post_batch
+from pi_node.label_policy import should_print_label
+from pi_node.sender import send_eligible_once, should_send
 from plc_pi.client import PLCClient
 from storage.database import (
     claim_eligible_pending,
     clear_capture_state,
     connect,
+    enqueue_label_print_jobs,
     init_db,
     mark_rows_sent,
 )
@@ -47,6 +49,40 @@ SNAPSHOT = {
     "status": 1,
     "plcStatus": 1,
 }
+
+
+def label_result(*, storage_status="INSERTED", serial_no="7310585483169850"):
+    record_id = f"record-{serial_no}"
+    return {
+        "recordId": record_id,
+        "accepted": True,
+        "retryable": False,
+        "storageStatus": storage_status,
+        "inventoryStatus": "POSTED",
+        "printStatus": "READY",
+        "printJob": {
+            "schemaVersion": "1.0",
+            "jobId": f"SERIAL_LABEL:{serial_no}",
+            "kind": "SERIAL_LABEL",
+            "template": "BLANKET_ROLL_TRACE_V1",
+            "copies": 1,
+            "data": {
+                "manufacturerName": "OCFL",
+                "productName": "orewool blanket",
+                "serialNo": serial_no,
+                "sku": "ITEM_ORE_003",
+                "lotNo": "GW-20261006-OK-PB",
+                "weight": {"value": 15.4, "uom": "kg"},
+                "manufacturedAt": "2026-10-06T10:17:15.000Z",
+                "gatewayRecordId": record_id,
+            },
+            "qr": {
+                "format": "QR_CODE",
+                "value": f"https://erp.example.test/trace/{serial_no}",
+            },
+            "traceUrl": f"https://erp.example.test/trace/{serial_no}",
+        },
+    }
 
 
 class FakeSnap7Client:
@@ -168,6 +204,81 @@ class DurableCaptureTests(unittest.TestCase):
 
     def tearDown(self):
         self.tempdir.cleanup()
+
+    def test_inserted_and_duplicate_ready_results_are_both_printable(self):
+        self.assertTrue(should_print_label(label_result(storage_status="INSERTED")))
+        self.assertTrue(should_print_label(label_result(storage_status="DUPLICATE")))
+
+    def test_incomplete_or_unposted_results_are_not_printable(self):
+        pending = label_result()
+        pending["printStatus"] = "PENDING"
+        self.assertFalse(should_print_label(pending))
+
+        unposted = label_result()
+        unposted["inventoryStatus"] = "FAILED"
+        self.assertFalse(should_print_label(unposted))
+
+        mismatched = label_result()
+        mismatched["printJob"]["data"]["gatewayRecordId"] = "another-record"
+        self.assertFalse(should_print_label(mismatched))
+
+    def test_label_queue_uses_job_id_to_prevent_duplicate_printing(self):
+        first = label_result(serial_no="7310585483169850")["printJob"]
+        second = label_result(serial_no="9425902965883791")["printJob"]
+
+        self.assertEqual(
+            enqueue_label_print_jobs(self.db_path, [first, second]),
+            ["SERIAL_LABEL:7310585483169850", "SERIAL_LABEL:9425902965883791"],
+        )
+        self.assertEqual(enqueue_label_print_jobs(self.db_path, [first]), [])
+
+        con = connect(self.db_path)
+        try:
+            rows = con.execute(
+                "SELECT job_id, status FROM label_print_jobs ORDER BY id"
+            ).fetchall()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual([row["status"] for row in rows], ["PENDING", "PENDING"])
+        finally:
+            con.close()
+
+    @patch("storage.repository._append_jsonl")
+    def test_sender_queues_label_before_marking_production_sent(self, _backup):
+        _, record, _ = save_plc_event(
+            "scale-1",
+            SNAPSHOT,
+            db_path=self.db_path,
+            gateway_id="test-gateway",
+        )
+        result = label_result(serial_no="7310585483169850")
+        result["recordId"] = record["recordId"]
+        result["printJob"]["data"]["gatewayRecordId"] = record["recordId"]
+        delivery = DeliveryResult(
+            accepted_record_ids=frozenset({record["recordId"]}),
+            retryable_record_ids=frozenset(),
+            rejected={},
+            print_jobs=(result["printJob"],),
+        )
+
+        with (
+            patch("pi_node.sender.NODE_URL", "https://erp.example.test/gateway"),
+            patch("pi_node.sender.post_batch", return_value=delivery),
+        ):
+            self.assertTrue(send_eligible_once(self.db_path, force=True))
+
+        con = connect(self.db_path)
+        try:
+            self.assertEqual(
+                con.execute("SELECT status FROM records").fetchone()["status"],
+                "SENT",
+            )
+            label = con.execute(
+                "SELECT job_id, status FROM label_print_jobs"
+            ).fetchone()
+            self.assertEqual(label["job_id"], "SERIAL_LABEL:7310585483169850")
+            self.assertEqual(label["status"], "PENDING")
+        finally:
+            con.close()
 
     @patch("storage.repository._append_jsonl")
     def test_reread_of_same_ready_flag_reuses_identity(self, _backup):
@@ -338,10 +449,29 @@ class DurableCaptureTests(unittest.TestCase):
                                 "recordId": "accepted-id",
                                 "accepted": True,
                                 "retryable": False,
+                                "inventoryStatus": "POSTED",
                                 "printStatus": "READY",
                                 "printJob": {
+                                    "schemaVersion": "1.0",
                                     "jobId": "SERIAL_LABEL:123",
+                                    "kind": "SERIAL_LABEL",
                                     "template": "BLANKET_ROLL_TRACE_V1",
+                                    "copies": 1,
+                                    "data": {
+                                        "manufacturerName": "OCFL",
+                                        "productName": "orewool blanket",
+                                        "serialNo": "123",
+                                        "sku": "ITEM_ORE_003",
+                                        "lotNo": "GW-20261006-OK-PB",
+                                        "weight": {"value": 15.4, "uom": "kg"},
+                                        "manufacturedAt": "2026-10-06T10:17:15.000Z",
+                                        "gatewayRecordId": "accepted-id",
+                                    },
+                                    "qr": {
+                                        "format": "QR_CODE",
+                                        "value": "https://erp.example.test/trace/123",
+                                    },
+                                    "traceUrl": "https://erp.example.test/trace/123",
                                 },
                             }
                         ]

@@ -82,6 +82,12 @@ Blanket label is available only at `recordResults[].printJob` when
 The sender also understands the previous nested acknowledgement location during
 the deployment transition, but new backend responses use the compact layout.
 
+Before a production row is marked `SENT`, every valid `READY` label is stored
+in the local SQLite `label_print_jobs` queue. `job_id` is unique, so a backend
+`DUPLICATE` acknowledgement can safely recover a response lost in transit while
+repeated responses cannot queue the same physical label twice. A printer worker
+can later consume only `PENDING` jobs and mark them `PRINTED` after confirmation.
+
 ## Operational checks
 
 ```bash

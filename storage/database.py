@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -61,6 +62,20 @@ def init_db(db_path: Path) -> None:
             CREATE TABLE IF NOT EXISTS kv (
                 k TEXT PRIMARY KEY,
                 v TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS label_print_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL UNIQUE,
+                gateway_record_id TEXT NOT NULL,
+                serial_no TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING'
+                    CHECK(status IN ('PENDING', 'PRINTING', 'PRINTED', 'FAILED')),
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                created_at TEXT NOT NULL,
+                printed_at TEXT
             );
             """
         )
@@ -128,6 +143,9 @@ def init_db(db_path: Path) -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_records_source_record_id_unique
             ON records(source, record_id)
             WHERE source IS NOT NULL;
+
+            CREATE INDEX IF NOT EXISTS idx_label_print_jobs_status
+            ON label_print_jobs(status, created_at);
             """
         )
         con.commit()
@@ -468,6 +486,55 @@ def kv_set(db_path: Path, key: str, value: str) -> None:
             (key, value),
         )
         con.commit()
+    finally:
+        con.close()
+
+
+def enqueue_label_print_jobs(db_path: Path, jobs: Iterable[dict]) -> list[str]:
+    """Durably queue new label jobs, ignoring an already known identical job."""
+    queued: list[str] = []
+    con = connect(db_path)
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        for job in jobs:
+            job_id = str(job.get("jobId") or "")
+            data = job.get("data") if isinstance(job.get("data"), dict) else {}
+            gateway_record_id = str(data.get("gatewayRecordId") or "")
+            serial_no = str(data.get("serialNo") or "")
+            if not job_id or not gateway_record_id or not serial_no:
+                raise ValueError("Label job identity is incomplete")
+
+            payload = json.dumps(
+                job,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            existing = con.execute(
+                "SELECT payload FROM label_print_jobs WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if existing:
+                if existing["payload"] != payload:
+                    raise RuntimeError(
+                        f"Label job {job_id} was received with conflicting data"
+                    )
+                continue
+
+            con.execute(
+                """
+                INSERT INTO label_print_jobs (
+                    job_id, gateway_record_id, serial_no, payload, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (job_id, gateway_record_id, serial_no, payload, utc_now_iso()),
+            )
+            queued.append(job_id)
+        con.commit()
+        return queued
+    except Exception:
+        con.rollback()
+        raise
     finally:
         con.close()
 

@@ -11,6 +11,7 @@ from config import (
     HTTP_READ_TIMEOUT_SEC,
     NODE_URL,
 )
+from pi_node.label_policy import should_print_label
 from utility.time_utils import utc_now_iso
 
 
@@ -137,14 +138,6 @@ def post_batch(rows) -> DeliveryResult:
             {},
             "Backend returned 2xx without contract-v2 record acknowledgements",
         )
-        
-    print(
-        "❇️ just test for results:\n",
-        json.dumps(results, indent=2, default=str),
-        "\n❇️ just test for response:\n",
-        json.dumps(body if isinstance(body, dict) else body, indent=2, default=str),
-        flush=True,
-    )
     
     accepted: set[str] = set()
     retryable: set[str] = set()
@@ -156,9 +149,8 @@ def post_batch(rows) -> DeliveryResult:
             continue
         if result.get("accepted") is True:
             accepted.add(record_id)
-            print_job = result.get("printJob")
-            if result.get("printStatus") == "READY" and isinstance(print_job, dict):
-                print_jobs.append(print_job)
+            if should_print_label(result):
+                print_jobs.append(result["printJob"])
         elif result.get("retryable", True):
             retryable.add(record_id)
         else:
